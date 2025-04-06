@@ -8,6 +8,10 @@ import json
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
+# Встановлення фіксованої назви файлу
+JSON_FILENAME = 'tariff_data.json'
+
+
 # Set page title and configure layout
 st.set_page_config(page_title="UN Comtrade Data Retrieval", layout="wide")
 
@@ -57,10 +61,9 @@ def get_tariff_line_data(comtradeapicall, subscription_key, period_string, commo
         # Convert DataFrame to list of dictionaries for serialization
         data_for_json = panDForig.to_dict(orient='records')
         
-        # Write results to file
-        output_filename = f'tariff_data_{commodity_code}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+       
         
-        with open(output_filename, 'w', encoding='utf-8') as f:
+        with open(JSON_FILENAME, 'w', encoding='utf-8') as f:
             json.dump({
                 'metadata': results,
                 'data': data_for_json
