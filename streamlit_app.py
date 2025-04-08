@@ -61,8 +61,7 @@ def get_tariff_line_data(comtradeapicall, subscription_key, period_string, commo
         # Convert DataFrame to list of dictionaries for serialization
         data_for_json = panDForig.to_dict(orient='records')
         
-       
-        
+        # Save to JSON file
         with open(JSON_FILENAME, 'w', encoding='utf-8') as f:
             json.dump({
                 'metadata': results,
@@ -73,7 +72,7 @@ def get_tariff_line_data(comtradeapicall, subscription_key, period_string, commo
         st.success(f"Data retrieved successfully for commodity code {commodity_code}")
         st.info(f"Rows retrieved: {results['total_rows']}")
         st.info(f"Execution time: {execution_time:.2f} seconds")
-        st.info(f"File saved: {output_filename}")
+        st.info(f"File saved: {JSON_FILENAME}")
         
         return panDForig, results
     
@@ -81,12 +80,76 @@ def get_tariff_line_data(comtradeapicall, subscription_key, period_string, commo
         st.error(f"Error retrieving data: {str(e)}")
         return pd.DataFrame(), {'error': str(e)}
 
+# Function to analyze NPK fertilizer data by year
+def analyze_npk_import_by_year(data_df):
+    # Check if we have the required columns
+    if 'statPeriod' in data_df.columns and 'primaryValue' in data_df.columns:
+        # Convert statPeriod to datetime
+        data_df['date'] = pd.to_datetime(data_df['statPeriod'], format='%Y%m')
+        
+        # Extract year
+        data_df['year'] = data_df['date'].dt.year
+        
+        # Group by year and sum the primaryValue
+        yearly_data = data_df.groupby('year')['primaryValue'].sum().reset_index()
+        
+        return yearly_data
+    else:
+        return pd.DataFrame()
+
+# Function to create NPK import trend line chart by year
+def plot_npk_yearly_trend(yearly_data):
+    if not yearly_data.empty:
+        fig, ax = plt.subplots(figsize=(12, 6))
+        
+        # Plot the line
+        ax.plot(yearly_data['year'], yearly_data['primaryValue'], marker='o', linestyle='-', linewidth=2, color='#3366cc')
+        
+        # Add data points and values
+        for x, y in zip(yearly_data['year'], yearly_data['primaryValue']):
+            ax.annotate(f"{y/1000000:.1f}M", 
+                        (x, y),
+                        textcoords="offset points", 
+                        xytext=(0, 10), 
+                        ha='center')
+        
+        # Set title and labels
+        ax.set_title('Річний імпорт НПК добрив в Україну', fontsize=16)
+        ax.set_xlabel('Рік', fontsize=12)
+        ax.set_ylabel('Вартість (USD)', fontsize=12)
+        
+        # Format y-axis to show in millions
+        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x/1000000:.1f}M'))
+        
+        # Set grid
+        ax.grid(True, linestyle='--', alpha=0.7)
+        
+        # Make sure years are integers on x-axis
+        ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
+        
+        # Tight layout
+        plt.tight_layout()
+        
+        return fig
+    else:
+        return None
+
+# Function to load existing data from JSON file
+def load_json_data():
+    try:
+        with open(JSON_FILENAME, 'r', encoding='utf-8') as f:
+            json_data = json.load(f)
+            data_df = pd.DataFrame(json_data['data'])
+            return data_df
+    except Exception as e:
+        st.warning(f"Could not load data from {JSON_FILENAME}: {str(e)}")
+        return pd.DataFrame()
+
 # Sidebar for input parameters
 st.sidebar.header("Parameters")
 
 # API Key input
 subscription_key = "ede51c36a7db4b639bf9f220416e0f1f"
-
 
 # Commodity code input with examples
 commodity_code_examples = {
@@ -121,10 +184,6 @@ if start_date >= end_date:
 periods = pd.date_range(start=start_date, end=end_date, freq='MS').strftime("%Y%m").tolist()
 period_string = ",".join(periods)
 
-# Show the period string
-#st.sidebar.subheader("Generated Period String")
-#st.sidebar.code(period_string)
-
 # Button to fetch data
 if st.sidebar.button("Fetch Data"):
     if not subscription_key:
@@ -133,7 +192,7 @@ if st.sidebar.button("Fetch Data"):
         st.sidebar.error("Please enter a valid Commodity Code")
     else:
         # Create tabs for different views
-        tab1, tab2, tab3 = st.tabs(["Data", "Visualization", "JSON"])
+        tab1, tab2, tab3, tab4 = st.tabs(["Data", "Monthly Visualization", "Yearly NPK Import", "JSON"])
         
         with tab1:
             # Fetch data
@@ -155,7 +214,7 @@ if st.sidebar.button("Fetch Data"):
         
         with tab2:
             if not panDForig.empty:
-                st.subheader("Data Visualization")
+                st.subheader("Monthly Data Visualization")
                 
                 # Check if we have time period and trade value columns
                 if 'statPeriod' in panDForig.columns and 'primaryValue' in panDForig.columns:
@@ -199,12 +258,276 @@ if st.sidebar.button("Fetch Data"):
                     st.warning("Data does not contain expected columns for visualization")
         
         with tab3:
+            st.subheader("Річний розподіл імпорту НПК")
+            
+            # Check if we fetched NPK data (310520 code)
+            if commodity_code == '310520' and not panDForig.empty:
+                # Analyze NPK data by year
+                yearly_data = analyze_npk_import_by_year(panDForig)
+                
+                if not yearly_data.empty:
+                    # Display yearly data table
+                    st.subheader("Річні дані імпорту НПК")
+                    
+                    # Format yearly data for display
+                    display_data = yearly_data.copy()
+                    display_data['primaryValue (USD)'] = display_data['primaryValue'].apply(lambda x: f"${x:,.2f}")
+                    display_data['primaryValue (Million USD)'] = display_data['primaryValue'].apply(lambda x: f"${x/1000000:.2f}M")
+                    display_data = display_data.rename(columns={'year': 'Рік', 'primaryValue': 'Вартість (USD)'})
+                    
+                    st.dataframe(display_data[['Рік', 'primaryValue (USD)', 'primaryValue (Million USD)']])
+                    
+                    # Create and display yearly trend plot
+                    fig_yearly = plot_npk_yearly_trend(yearly_data)
+                    if fig_yearly:
+                        st.pyplot(fig_yearly)
+                    
+                    # Download yearly data as CSV
+                    csv_yearly = yearly_data.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="Download yearly NPK data as CSV",
+                        data=csv_yearly,
+                        file_name='npk_yearly_import_data.csv',
+                        mime='text/csv',
+                    )
+                else:
+                    st.warning("Could not process yearly NPK import data")
+            else:
+                # Try to load existing NPK data from JSON file
+                if commodity_code != '310520':
+                    st.info("This tab shows yearly NPK fertilizer import data. Please select commodity code 310520 and fetch data to see NPK analysis.")
+                    
+                    # Try to load existing NPK data from JSON file
+                    try:
+                        with open(JSON_FILENAME, 'r', encoding='utf-8') as f:
+                            json_data = json.load(f)
+                            # Check if the loaded data is for NPK fertilizers
+                            if json_data.get('metadata', {}).get('commodity_code') == '310520':
+                                data_df = pd.DataFrame(json_data['data'])
+                                yearly_data = analyze_npk_import_by_year(data_df)
+                                
+                                if not yearly_data.empty:
+                                    st.success("Showing previously loaded NPK data from JSON file")
+                                    
+                                    # Display yearly data table
+                                    st.subheader("Річні дані імпорту НПК")
+                                    
+                                    # Format yearly data for display
+                                    display_data = yearly_data.copy()
+                                    display_data['primaryValue (USD)'] = display_data['primaryValue'].apply(lambda x: f"${x:,.2f}")
+                                    display_data['primaryValue (Million USD)'] = display_data['primaryValue'].apply(lambda x: f"${x/1000000:.2f}M")
+                                    display_data = display_data.rename(columns={'year': 'Рік', 'primaryValue': 'Вартість (USD)'})
+                                    
+                                    st.dataframe(display_data[['Рік', 'primaryValue (USD)', 'primaryValue (Million USD)']])
+                                    
+                                    # Create and display yearly trend plot
+                                    fig_yearly = plot_npk_yearly_trend(yearly_data)
+                                    if fig_yearly:
+                                        st.pyplot(fig_yearly)
+                            else:
+                                st.warning("No NPK data found in the JSON file. Please fetch data for commodity code 310520.")
+                    except Exception as e:
+                        st.warning(f"Could not load NPK data from JSON file: {str(e)}")
+        
+        with tab4:
             if not panDForig.empty:
                 st.subheader("JSON Data")
                 st.json({
                     'metadata': results,
                     'data': panDForig.head(10).to_dict(orient='records')  # Show only first 10 records to keep it manageable
                 })
+            else:
+                # Try to load existing data from JSON file
+                try:
+                    with open(JSON_FILENAME, 'r', encoding='utf-8') as f:
+                        json_data = json.load(f)
+                        st.json({
+                            'metadata': json_data.get('metadata', {}),
+                            'data': json_data.get('data', [])[:10]  # Show only first 10 records
+                        })
+                except Exception as e:
+                    st.warning(f"Could not load data from JSON file: {str(e)}")
+
+# Add button to load existing data from JSON without API call
+if st.sidebar.button("Load Data From JSON"):
+    # Create tabs for different views
+    tab1, tab2, tab3, tab4 = st.tabs(["Data", "Monthly Visualization", "Yearly NPK Import", "JSON"])
+    
+    # Load data from JSON file
+    data_df = load_json_data()
+    
+    if not data_df.empty:
+        # Get commodity code from loaded data
+        loaded_commodity_code = data_df['cmdCode'].iloc[0] if 'cmdCode' in data_df.columns else "Unknown"
+        
+        with tab1:
+            # Show data
+            st.subheader(f"Loaded Data for Commodity Code {loaded_commodity_code}")
+            st.dataframe(data_df)
+            
+            # Download options
+            csv = data_df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="Download data as CSV",
+                data=csv,
+                file_name=f'tariff_data_{loaded_commodity_code}.csv',
+                mime='text/csv',
+            )
+        
+        with tab2:
+            st.subheader("Monthly Data Visualization")
+
+            # Перетворення періоду в дату та додавання колонки року
+            data_df['date'] = pd.to_datetime(data_df['period'].astype(str), format='%Y%m')
+            data_df['year'] = data_df['date'].dt.year
+            
+            # Визначаємо топ-3 країни-партнерів за вартістю імпорту
+            partner_value = data_df.groupby('partnerDesc')['primaryValue'].sum().sort_values(ascending=False)
+            top3_countries = partner_value.head(3).index.tolist()
+            
+            # Створюємо новий DataFrame для аналізу за роками
+            yearly_data = data_df.groupby(['year', 'partnerDesc'])['netWgt'].sum().reset_index()
+            
+            # Конвертуємо кг в тис. тонн
+            yearly_data['netWgt_thousand_tons'] = yearly_data['netWgt'] / 1000
+            
+            # Фільтруємо дані лише для топ-3 країн
+            yearly_data_filtered = yearly_data[yearly_data['partnerDesc'].isin(top3_countries)]
+            #yearly_data_filtered = yearly_data[yearly_data['partnerDesc'].isin(top5_countries)]
+            
+            # Отримуємо унікальні роки для осі X
+            years = sorted(data_df['year'].unique())
+            
+            # Створюємо фігуру для графіка
+            plt.figure(figsize=(10, 6), facecolor='white')
+            
+            # Налаштування фону графіка
+            ax = plt.gca()
+            ax.set_facecolor('white')
+            
+            # Параметри сітки
+            plt.grid(True, linestyle='--', alpha=0.3, axis='y')
+            
+            # Створюємо мапінг для типів НПК (замість країн)
+            npk_types = {
+                top3_countries[0]: 'DAP',  # Перша країна відповідає DAP
+                top3_countries[1]: 'MAP',  # Друга країна відповідає MAP
+                top3_countries[2]: 'NP'    # Третя країна відповідає NP
+            }
+            
+            # Створюємо кольори для типів НПК
+            colors = {
+                'DAP': 'red',
+                'MAP': 'blue',
+                'NP': 'green'
+            }
+            
+            # Налаштування осей
+            max_value = yearly_data_filtered['netWgt_thousand_tons'].max() * 1.2
+            plt.ylim(0, max_value)
+            
+            # Додаємо лінії для кожного типу НПК (замість країн)
+            for country, npk_type in npk_types.items():
+                country_data = yearly_data_filtered[yearly_data_filtered['partnerDesc'] == country]
+                data_by_year = country_data.set_index('year')['netWgt_thousand_tons']
+                
+                # Додаємо дані для всіх років (навіть тих, де немає імпорту)
+                all_years_data = pd.Series(index=years, dtype=float)
+                all_years_data.update(data_by_year)
+                all_years_data = all_years_data.fillna(0)
+                
+                # Побудова лінії
+                plt.plot(
+                    years, 
+                    all_years_data.values, 
+                    color=colors[npk_type], 
+                    linewidth=2, 
+                    marker='o',
+                    markersize=6,
+                    label=npk_type  # Використовуємо тип НПК замість назви країни
+                )
+            
+            # Налаштування розмітки осі X (роки)
+            plt.xticks(years)
+            
+            # Додавання заголовка українською
+            plt.title('ІМПОРТ ФОСФАТНИХ ДОБРИВ ДО ЄВРОПИ', fontsize=14, fontweight='bold', color='black')
+            
+            # Додавання підписів осей українською
+            plt.ylabel('тис. тонн', fontsize=12, color='black')
+            plt.xlabel('Рік', fontsize=12, color='black')
+            
+            # Прибираємо рамку навколо графіка для мінімалістичного дизайну
+            plt.box(False)
+            
+            # Додавання легенди
+            plt.legend(loc='lower center', bbox_to_anchor=(0.5, -0.15), ncol=3, frameon=False)
+            
+            # Налаштування макету для кращого відображення
+            plt.tight_layout()
+            
+            # Збереження графіка з українським іменем файлу
+            plt.savefig('імпорт_фосфатних_добрив_за_типами.png', dpi=300, bbox_inches='tight', facecolor='white')
+            print(f"Графік успішно створено і збережено як 'імпорт_фосфатних_добрив_за_типами.png'")
+            
+            # Показ графіка
+            plt.show()
+
+                    
+            
+        
+        with tab3:
+            st.subheader("Річний розподіл імпорту НПК")
+            
+            # Check if loaded data is NPK data (310520 code)
+            if loaded_commodity_code == '310520':
+                # Analyze NPK data by year
+                yearly_data = analyze_npk_import_by_year(data_df)
+                
+                if not yearly_data.empty:
+                    # Display yearly data table
+                    st.subheader("Річні дані імпорту НПК")
+                    
+                    # Format yearly data for display
+                    display_data = yearly_data.copy()
+                    display_data['primaryValue (USD)'] = display_data['primaryValue'].apply(lambda x: f"${x:,.2f}")
+                    display_data['primaryValue (Million USD)'] = display_data['primaryValue'].apply(lambda x: f"${x/1000000:.2f}M")
+                    display_data = display_data.rename(columns={'year': 'Рік', 'primaryValue': 'Вартість (USD)'})
+                    
+                    st.dataframe(display_data[['Рік', 'primaryValue (USD)', 'primaryValue (Million USD)']])
+                    
+                    # Create and display yearly trend plot
+                    fig_yearly = plot_npk_yearly_trend(yearly_data)
+                    if fig_yearly:
+                        st.pyplot(fig_yearly)
+                    
+                    # Download yearly data as CSV
+                    csv_yearly = yearly_data.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="Download yearly NPK data as CSV",
+                        data=csv_yearly,
+                        file_name='npk_yearly_import_data.csv',
+                        mime='text/csv',
+                    )
+                else:
+                    st.warning("Could not process yearly NPK import data")
+            else:
+                st.info("This tab shows yearly NPK fertilizer import data. Please load data for commodity code 310520 to see NPK analysis.")
+        
+        with tab4:
+            st.subheader("JSON Data")
+            
+            try:
+                with open(JSON_FILENAME, 'r', encoding='utf-8') as f:
+                    json_data = json.load(f)
+                    st.json({
+                        'metadata': json_data.get('metadata', {}),
+                        'data': json_data.get('data', [])[:10]  # Show only first 10 records
+                    })
+            except Exception as e:
+                st.warning(f"Could not load JSON data: {str(e)}")
+    else:
+        st.warning(f"No data found in {JSON_FILENAME}")
 
 # Add information about the app
 st.sidebar.markdown("---")
@@ -216,5 +539,7 @@ st.sidebar.info(
     You need a valid subscription key to use this app.
     
     The data is fetched for monthly periods between the selected start and end dates.
+    
+    The NPK Import tab shows yearly analysis for NPK fertilizers (commodity code 310520).
     """
 )
