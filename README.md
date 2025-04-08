@@ -1,4 +1,4 @@
-# 🎈 Додаток для отримання даних UN Comtrade API
+# 🎈 Додаток для отримання даних UN Comtrade API.
 
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://blank-app-template.streamlit.app/)
 
@@ -181,3 +181,48 @@ https://comtrade-api-demo-1.streamlit.app/
 6. Експорт у додаткові формати (Excel, PDF-звіти)
 7. Вдосконалені механізми відновлення після помилок та повторних спроб
 
+## UKR Дослідницький проєкт: Імпорт NPK добрив у цифрах: аналіз тенденцій та географії
+
+## Вступ
+Проєкт присвячено аналізу імпорту NPK добрив до України. Цей проєкт має на меті визначення основних імпортерів NPK добрив, динаміки імпорту протягом періоду 2019–2025 років та основних джерел імпорту.
+
+## Огляд даних
+У цьому проєкті аналіз даних базується на джерелі: https://comtradeplus.un.org/, яке надало CSV-файли на основі кодів Гармонізованої системи (HS) 310520 (добрива мінеральні або хімічні, що містять три елементи, які удобрюють: азот, фосфор і калій).
+
+## 1. Аналіз тенденцій імпорту
+
+Як змінювався обсяг імпорту NPK за роками?
+Які сезонні тенденції спостерігаються в імпорті (аналіз по місяцях)?
+
+## 2. Географічний аналіз
+
+Які країни є найбільшими імпортерами та експортерами NPK?
+Як змінювались торгові потоки між країнами за досліджуваний період?
+
+## 3. Аналіз товарної структури
+
+Які типи NPK-добрив найбільш популярні в імпорті?
+Чи є зміни у структурі імпортованих товарів за досліджуваний період?
+
+## ENG Research project: Imports of NPK fertilisers in numbers: trend and geographical analysis
+
+## Introduction
+The project is dedicated to the analysis of the import of NPK fertilizers into Ukraine. This project aims to define the main importers of NPK fertilizers, tthe dynamics of imports throughout the period 2019–2025, and the main sources of import.
+
+## Data Overview
+In this project, the data analysis the data analysis relies on the source: https://comtradeplus.un.org/ , which has provided CSV files based on HS (Harmonized System) code 310520 (fertilizers, mineral or chemical, containing the three fertilizing elements nitrogen, phosphorus, and potassium).
+
+## 1. Analysis of import trends
+
+How has the volume of NPK imports changed over the years?
+What are the seasonal trends in imports (monthly analysis)?
+
+## 2. Geographical analysis
+
+Which countries are the largest importers and exporters of NPK?
+How did trade flows between countries change during the study period?
+
+## 3. Product structure analysis
+
+What types of NPK fertilisers are most popular for import?
+Have there been any changes in the structure of imported goods during the study period?
