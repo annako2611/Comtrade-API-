@@ -66,8 +66,7 @@ def display_phosphate_imports(data_df):
     max_value = yearly_data_filtered['netWgt_thousand_tons'].max() * 1.2
     ax.set_ylim(0, max_value)
     
-    # Додаємо лінії для кожного типу НПК (замість країн)
-    #for country, npk_type in npk_types.items():
+   
     # Додаємо лінії для кожної країни
     for country in top3_countries:
         country_data = yearly_data_filtered[yearly_data_filtered['partnerDesc'] == country]
