@@ -7,9 +7,126 @@ import time
 import json
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+import io
+
 
 # Встановлення фіксованої назви файлу
 JSON_FILENAME = 'tariff_data.json'
+
+
+def display_phosphate_imports(data_df):
+    st.subheader("Щомісячна візуалізація даних")
+    
+    # Перетворення періоду в дату та додавання колонки року
+    data_df['date'] = pd.to_datetime(data_df['period'].astype(str), format='%Y%m')
+    data_df['year'] = data_df['date'].dt.year
+    
+    # Визначаємо топ-3 країни-партнерів за вартістю імпорту
+    partner_value = data_df.groupby('partnerDesc')['primaryValue'].sum().sort_values(ascending=False)
+    top3_countries = partner_value.head(3).index.tolist()
+    
+    # Створюємо новий DataFrame для аналізу за роками
+    yearly_data = data_df.groupby(['year', 'partnerDesc'])['netWgt'].sum().reset_index()
+    
+    # Конвертуємо кг в тис. тонн
+    yearly_data['netWgt_thousand_tons'] = yearly_data['netWgt'] / 1000
+    
+    # Фільтруємо дані лише для топ-3 країн
+    yearly_data_filtered = yearly_data[yearly_data['partnerDesc'].isin(top3_countries)]
+    
+    # Отримуємо унікальні роки для осі X
+    years = sorted(data_df['year'].unique())
+    
+    # Створюємо фігуру для графіка
+    fig, ax = plt.subplots(figsize=(10, 6), facecolor='white')
+    
+    # Налаштування фону графіка
+    ax.set_facecolor('white')
+    
+    # Параметри сітки
+    ax.grid(True, linestyle='--', alpha=0.3, axis='y')
+    
+    # Створюємо мапінг для типів НПК (замість країн)
+    npk_types = {
+        top3_countries[0]: 'DAP',  # Перша країна відповідає DAP
+        top3_countries[1]: 'MAP',  # Друга країна відповідає MAP
+        top3_countries[2]: 'NP'    # Третя країна відповідає NP
+    }
+    
+    # Створюємо кольори для типів НПК
+    colors = {
+        'DAP': 'red',
+        'MAP': 'blue',
+        'NP': 'green'
+    }
+    
+    # Налаштування осей
+    max_value = yearly_data_filtered['netWgt_thousand_tons'].max() * 1.2
+    ax.set_ylim(0, max_value)
+    
+    # Додаємо лінії для кожного типу НПК (замість країн)
+    for country, npk_type in npk_types.items():
+        country_data = yearly_data_filtered[yearly_data_filtered['partnerDesc'] == country]
+        data_by_year = country_data.set_index('year')['netWgt_thousand_tons']
+        
+        # Додаємо дані для всіх років (навіть тих, де немає імпорту)
+        all_years_data = pd.Series(index=years, dtype=float)
+        all_years_data.update(data_by_year)
+        all_years_data = all_years_data.fillna(0)
+        
+        # Побудова лінії
+        ax.plot(
+            years, 
+            all_years_data.values, 
+            color=colors[npk_type], 
+            linewidth=2, 
+            marker='o',
+            markersize=6,
+            label=npk_type  # Використовуємо тип НПК замість назви країни
+        )
+    
+    # Налаштування розмітки осі X (роки)
+    ax.set_xticks(years)
+    
+    # Додавання заголовка українською
+    ax.set_title('ІМПОРТ ФОСФАТНИХ ДОБРИВ ДО ЄВРОПИ', fontsize=14, fontweight='bold', color='black')
+    
+    # Додавання підписів осей українською
+    ax.set_ylabel('тис. тонн', fontsize=12, color='black')
+    ax.set_xlabel('Рік', fontsize=12, color='black')
+    
+    # Прибираємо рамку навколо графіка для мінімалістичного дизайну
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    # Додавання легенди
+    ax.legend(loc='lower center', bbox_to_anchor=(0.5, -0.15), ncol=3, frameon=False)
+    
+    # Налаштування макету для кращого відображення
+    plt.tight_layout()
+    
+    # Показ графіка у Streamlit
+    st.pyplot(fig)
+    
+    # Додаємо опцію завантаження графіка
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=300, bbox_inches='tight', facecolor='white')
+    buf.seek(0)
+    
+    st.download_button(
+        label="Завантажити графік",
+        data=buf,
+        file_name="імпорт_фосфатних_добрив_за_типами.png",
+        mime="image/png"
+    )
+
+    # Відображення таблиці з даними
+    if st.checkbox("Показати дані у табличному форматі"):
+        st.write("Дані про імпорт фосфатних добрив (тис. тонн):")
+        pivot_table = yearly_data_filtered.pivot(index='year', columns='partnerDesc', values='netWgt_thousand_tons').fillna(0)
+        # Перейменовуємо колонки з назв країн на типи добрив
+        pivot_table = pivot_table.rename(columns=npk_types)
+        st.dataframe(pivot_table)
 
 
 # Set page title and configure layout
@@ -377,101 +494,12 @@ if st.sidebar.button("Load Data From JSON"):
         with tab2:
             st.subheader("Monthly Data Visualization")
 
-            # Перетворення періоду в дату та додавання колонки року
-            data_df['date'] = pd.to_datetime(data_df['period'].astype(str), format='%Y%m')
-            data_df['year'] = data_df['date'].dt.year
+            # Відображаємо візуалізацію
+            display_phosphate_imports(data_df)
+
             
-            # Визначаємо топ-3 країни-партнерів за вартістю імпорту
-            partner_value = data_df.groupby('partnerDesc')['primaryValue'].sum().sort_values(ascending=False)
-            top3_countries = partner_value.head(3).index.tolist()
+             
             
-            # Створюємо новий DataFrame для аналізу за роками
-            yearly_data = data_df.groupby(['year', 'partnerDesc'])['netWgt'].sum().reset_index()
-            
-            # Конвертуємо кг в тис. тонн
-            yearly_data['netWgt_thousand_tons'] = yearly_data['netWgt'] / 1000
-            
-            # Фільтруємо дані лише для топ-3 країн
-            yearly_data_filtered = yearly_data[yearly_data['partnerDesc'].isin(top3_countries)]
-            #yearly_data_filtered = yearly_data[yearly_data['partnerDesc'].isin(top5_countries)]
-            
-            # Отримуємо унікальні роки для осі X
-            years = sorted(data_df['year'].unique())
-            
-            # Створюємо фігуру для графіка
-            plt.figure(figsize=(10, 6), facecolor='white')
-            
-            # Налаштування фону графіка
-            ax = plt.gca()
-            ax.set_facecolor('white')
-            
-            # Параметри сітки
-            plt.grid(True, linestyle='--', alpha=0.3, axis='y')
-            
-            # Створюємо мапінг для типів НПК (замість країн)
-            npk_types = {
-                top3_countries[0]: 'DAP',  # Перша країна відповідає DAP
-                top3_countries[1]: 'MAP',  # Друга країна відповідає MAP
-                top3_countries[2]: 'NP'    # Третя країна відповідає NP
-            }
-            
-            # Створюємо кольори для типів НПК
-            colors = {
-                'DAP': 'red',
-                'MAP': 'blue',
-                'NP': 'green'
-            }
-            
-            # Налаштування осей
-            max_value = yearly_data_filtered['netWgt_thousand_tons'].max() * 1.2
-            plt.ylim(0, max_value)
-            
-            # Додаємо лінії для кожного типу НПК (замість країн)
-            for country, npk_type in npk_types.items():
-                country_data = yearly_data_filtered[yearly_data_filtered['partnerDesc'] == country]
-                data_by_year = country_data.set_index('year')['netWgt_thousand_tons']
-                
-                # Додаємо дані для всіх років (навіть тих, де немає імпорту)
-                all_years_data = pd.Series(index=years, dtype=float)
-                all_years_data.update(data_by_year)
-                all_years_data = all_years_data.fillna(0)
-                
-                # Побудова лінії
-                plt.plot(
-                    years, 
-                    all_years_data.values, 
-                    color=colors[npk_type], 
-                    linewidth=2, 
-                    marker='o',
-                    markersize=6,
-                    label=npk_type  # Використовуємо тип НПК замість назви країни
-                )
-            
-            # Налаштування розмітки осі X (роки)
-            plt.xticks(years)
-            
-            # Додавання заголовка українською
-            plt.title('ІМПОРТ ФОСФАТНИХ ДОБРИВ ДО ЄВРОПИ', fontsize=14, fontweight='bold', color='black')
-            
-            # Додавання підписів осей українською
-            plt.ylabel('тис. тонн', fontsize=12, color='black')
-            plt.xlabel('Рік', fontsize=12, color='black')
-            
-            # Прибираємо рамку навколо графіка для мінімалістичного дизайну
-            plt.box(False)
-            
-            # Додавання легенди
-            plt.legend(loc='lower center', bbox_to_anchor=(0.5, -0.15), ncol=3, frameon=False)
-            
-            # Налаштування макету для кращого відображення
-            plt.tight_layout()
-            
-            # Збереження графіка з українським іменем файлу
-            plt.savefig('імпорт_фосфатних_добрив_за_типами.png', dpi=300, bbox_inches='tight', facecolor='white')
-            print(f"Графік успішно створено і збережено як 'імпорт_фосфатних_добрив_за_типами.png'")
-            
-            # Показ графіка
-            plt.show()
 
                     
             
