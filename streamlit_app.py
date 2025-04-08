@@ -53,19 +53,23 @@ def display_phosphate_imports(data_df):
         top3_countries[2]: 'NP'    # Третя країна відповідає NP
     }
     
-    # Створюємо кольори для типів НПК
+  
+    # Створюємо словник з кольорами для країн
     colors = {
-        'DAP': 'red',
-        'MAP': 'blue',
-        'NP': 'green'
+        top3_countries[0]: 'red',
+        top3_countries[1]: 'blue',
+        top3_countries[2]: 'green'
     }
+    
     
     # Налаштування осей
     max_value = yearly_data_filtered['netWgt_thousand_tons'].max() * 1.2
     ax.set_ylim(0, max_value)
     
     # Додаємо лінії для кожного типу НПК (замість країн)
-    for country, npk_type in npk_types.items():
+    #for country, npk_type in npk_types.items():
+    # Додаємо лінії для кожної країни
+    for country in top3_countries:
         country_data = yearly_data_filtered[yearly_data_filtered['partnerDesc'] == country]
         data_by_year = country_data.set_index('year')['netWgt_thousand_tons']
         
@@ -78,18 +82,18 @@ def display_phosphate_imports(data_df):
         ax.plot(
             years, 
             all_years_data.values, 
-            color=colors[npk_type], 
+            color=colors[country], 
             linewidth=2, 
             marker='o',
             markersize=6,
-            label=npk_type  # Використовуємо тип НПК замість назви країни
+            label=country  # Використовуємо назви країни
         )
     
     # Налаштування розмітки осі X (роки)
     ax.set_xticks(years)
     
     # Додавання заголовка українською
-    ax.set_title('ІМПОРТ ФОСФАТНИХ ДОБРИВ ДО ЄВРОПИ', fontsize=14, fontweight='bold', color='black')
+    ax.set_title('ІМПОРТ ФОСФАТНИХ ДОБРИВ ДО  УКРАЇНА', fontsize=14, fontweight='bold', color='black')
     
     # Додавання підписів осей українською
     ax.set_ylabel('тис. тонн', fontsize=12, color='black')
